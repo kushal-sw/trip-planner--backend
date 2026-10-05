@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socket.io Real-Time Collaboration — TripPlanner</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 1.5rem; line-height: 1.5; }
+    .header { max-width: 900px; margin: 0 auto 1.5rem; }
+    h1 { font-size: 1.75rem; color: var(--accent); display: flex; align-items: center; gap: 0.5rem; }
+    p.subtitle { color: var(--muted); font-size: 0.95rem; margin-top: 0.25rem; }
+    .container { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+    .card { background-color: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+    .card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+    .badge { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 9999px; }
+    .badge.connected { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
+    .badge.disconnected { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.3rem; }
+    input, textarea {
+      width: 100%;
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.6rem;
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+    input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    .btn {
+      background-color: var(--accent);
+      color: #0f172a;
+      font-weight: 600;
+      padding: 0.6rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      width: 100%;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-secondary { background: var(--border); color: var(--text); margin-top: 0.5rem; }
+    .log-box {
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      height: 220px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+    .log-item { margin-bottom: 0.4rem; padding-bottom: 0.4rem; border-bottom: 1px solid #1e293b; }
+    .log-time { color: var(--muted); margin-right: 0.4rem; }
+    .log-user { color: var(--accent); font-weight: bold; }
+    .active-users-bar {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .avatar-pill {
+      background: var(--border);
+      color: var(--text);
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>⚡ Real-Time Collaborative Itinerary Simulator</h1>
+    <p class="subtitle">Simulate real-time multi-user collaborative trip planning powered by Socket.io.</p>
+  </div>
+
+  <div class="container">
+    <!-- Panel 1: Connection & Room Setup -->
+    <div class="card">
+      <h2>1. Room Connection <span id="connStatus" class="badge disconnected">Disconnected</span></h2>
+
+      <label for="jwtInput">User JWT Auth Token:</label>
+      <input type="text" id="jwtInput" placeholder="Paste user JWT token or click auto-login">
+
+      <button id="btnAutoLogin" class="btn btn-secondary" style="margin-bottom: 0.75rem;">🔑 Auto-Login Demo User (Alex)</button>
+
+      <label for="itineraryIdInput">Itinerary ID to Join:</label>
+      <input type="text" id="itineraryIdInput" placeholder="Paste an Itinerary ID or click Auto-Fetch">
+
+      <div style="display: flex; gap: 0.5rem;">
+        <button id="btnAutoFetch" class="btn btn-secondary">🔍 Auto-Fetch Trip Itinerary</button>
+        <button id="btnConnect" class="btn">🚀 Connect & Join Room</button>
+      </div>
+
+      <div style="margin-top: 1.25rem;">
+        <div class="active-users-bar">
+          <span>Active in Room:</span>
+          <div id="usersList"><span style="color: #64748b;">(Not connected)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Live Collaboration Actions & Event Log -->
+    <div class="card">
+      <h2>2. Live Updates & Activity Feed</h2>
+
+      <label for="updateNoteInput">Broadcast Itinerary Day Note (Real-time):</label>
+      <div style="display: flex; gap: 0.5rem;">
+        <input type="text" id="updateNoteInput" placeholder="e.g. Changed dinner reservation to 8:30 PM">
+        <button id="btnBroadcastNote" class="btn" style="width: auto; white-space: nowrap;">Send</button>
+      </div>
+
+      <label for="newActivityInput">Add Activity to Itinerary (Real-time Broadcast):</label>
+      <div style="display: flex; gap: 0.5rem;">
+        <input type="text" id="newActivityInput" placeholder="e.g. Sunset Boat Cruise">
+        <button id="btnBroadcastActivity" class="btn" style="width: auto; white-space: nowrap;">Add</button>
+      </div>
+
+      <label>Live Socket Event Log:</label>
+      <div id="logBox" class="log-box">
+        <div class="log-item" style="color: var(--muted);">Socket event logs will appear here...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket = null;
+    let currentItineraryId = null;
+
+    const jwtInput = document.getElementById('jwtInput');
+    const itineraryIdInput = document.getElementById('itineraryIdInput');
+    const connStatus = document.getElementById('connStatus');
+    const btnAutoLogin = document.getElementById('btnAutoLogin');
+    const btnAutoFetch = document.getElementById('btnAutoFetch');
+    const btnConnect = document.getElementById('btnConnect');
+    const usersList = document.getElementById('usersList');
+    const logBox = document.getElementById('logBox');
+
+    const updateNoteInput = document.getElementById('updateNoteInput');
+    const btnBroadcastNote = document.getElementById('btnBroadcastNote');
+    const newActivityInput = document.getElementById('newActivityInput');
+    const btnBroadcastActivity = document.getElementById('btnBroadcastActivity');
+
+    function log(user, action, details = '') {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-user">${user}</span>: ${action} ${details ? `<span style="color:#cbd5e1;">(${details})</span>` : ''}`;
+      if (logBox.children.length === 1 && logBox.children[0].innerText.includes('Socket event logs')) {
+        logBox.innerHTML = '';
+      }
+      logBox.prepend(div);
+    }
+
+    // Auto-login Alex
+    btnAutoLogin.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'alex@example.com', password: 'userPassword123' })
+        });
+        const data = await res.json();
+        if (data.success && data.data.token) {
+          jwtInput.value = data.data.token;
+          log('System', 'Logged in as ' + data.data.user.name);
+        } else {
+          alert('Login failed: ' + data.message);
+        }
+      } catch (err) {
+        alert('Auto-login error: ' + err.message);
+      }
+    });
+
+    // Auto-fetch itinerary
+    btnAutoFetch.addEventListener('click', async () => {
+      const token = jwtInput.value.trim();
+      if (!token) return alert('Please login first to get a token.');
+      try {
+        const res = await fetch('/api/itineraries', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.data && data.data.length > 0) {
+          itineraryIdInput.value = data.data[0]._id;
+          log('System', `Fetched Itinerary: "${data.data[0].title}" (ID: ${data.data[0]._id})`);
+        } else {
+          // If no itineraries exist, create one
+          const tripsRes = await fetch('/api/trips', { headers: { 'Authorization': `Bearer ${token}` } });
+          const tripsData = await tripsRes.json();
+          let tripId = tripsData.data?.trips?.[0]?._id;
+          if (!tripId) {
+            const createTrip = await fetch('/api/trips', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ title: 'Tokyo Adventure', destination: 'Tokyo', startDate: '2026-08-01', endDate: '2026-08-10' })
+            });
+            const created = await createTrip.json();
+            tripId = created.data._id;
+          }
+
+          const createItin = await fetch('/api/itineraries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ tripId, dayNumber: 1, date: '2026-08-01', title: 'Day 1: Arrival & Shinjuku' })
+          });
+          const itinData = await createItin.json();
+          itineraryIdInput.value = itinData.data._id;
+          log('System', `Created demo itinerary: "${itinData.data.title}"`);
+        }
+      } catch (err) {
+        alert('Auto-fetch error: ' + err.message);
+      }
+    });
+
+    // Connect Socket.io
+    btnConnect.addEventListener('click', () => {
+      const token = jwtInput.value.trim();
+      const itineraryId = itineraryIdInput.value.trim();
+      if (!token) return alert('Please enter or auto-login with a JWT token.');
+      if (!itineraryId) return alert('Please enter or auto-fetch an Itinerary ID.');
+
+      if (socket) socket.disconnect();
+
+      socket = io({
+        auth: { token },
+      });
+
+      socket.on('connect', () => {
+        connStatus.className = 'badge connected';
+        connStatus.innerText = 'Connected';
+        log('Socket', 'Handshake authorized & connected (Socket ID: ' + socket.id + ')');
+
+        // Join itinerary room
+        currentItineraryId = itineraryId;
+        socket.emit('join-itinerary', { itineraryId });
+        log('Room', `Joined itinerary room: itinerary_${itineraryId}`);
+      });
+
+      socket.on('room-users-updated', ({ users }) => {
+        usersList.innerHTML = users.map(u => `<span class="avatar-pill">👤 ${u.name}</span>`).join(' ');
+        log('Room Presence', 'Active users count: ' + users.length);
+      });
+
+      socket.on('itinerary-updated', ({ updatedBy, data }) => {
+        log(updatedBy.name, 'Updated Itinerary Note', JSON.stringify(data));
+      });
+
+      socket.on('activity-added', ({ addedBy, activity }) => {
+        log(addedBy, 'Added New Activity', activity.name || activity);
+      });
+
+      socket.on('activity-updated', ({ updatedBy, activity }) => {
+        log(updatedBy, 'Updated Activity', activity.name || activity);
+      });
+
+      socket.on('error', (err) => {
+        log('Error', err.message || JSON.stringify(err));
+      });
+
+      socket.on('disconnect', () => {
+        connStatus.className = 'badge disconnected';
+        connStatus.innerText = 'Disconnected';
+        usersList.innerHTML = '<span style="color: #64748b;">(Not connected)</span>';
+        log('Socket', 'Disconnected');
+      });
+    });
+
+    // Broadcast note
+    btnBroadcastNote.addEventListener('click', () => {
+      const note = updateNoteInput.value.trim();
+      if (!note || !socket || !currentItineraryId) return;
+      socket.emit('itinerary-update', {
+        itineraryId: currentItineraryId,
+        data: { notes: note, updatedAt: new Date().toISOString() }
+      });
+      log('You (Local)', 'Broadcasted Note Update', note);
+      updateNoteInput.value = '';
+    });
+
+    // Broadcast activity
+    btnBroadcastActivity.addEventListener('click', () => {
+      const activityName = newActivityInput.value.trim();
+      if (!activityName || !socket || !currentItineraryId) return;
+      socket.emit('activity-added', {
+        itineraryId: currentItineraryId,
+        activity: { name: activityName, timestamp: new Date().toISOString() }
+      });
+      log('You (Local)', 'Broadcasted New Activity', activityName);
+      newActivityInput.value = '';
+    });
+  </script>
+</body>
+</html>

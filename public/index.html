@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TripPlanner — Smart Travel Itinerary Planner</title>
+  <link rel="stylesheet" href="/style.css">
+  <!-- Socket.io client -->
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <a href="/" class="brand">
+      <div class="brand-icon">🗺️</div>
+      <div>
+        <span class="brand-title">TripPlanner</span>
+        <span class="brand-badge">PRO</span>
+      </div>
+    </a>
+
+    <div class="nav-actions">
+      <div id="socketStatus" class="status-pill">
+        <span class="status-dot"></span>
+        <span id="socketText">Live Sync Active</span>
+      </div>
+
+      <div class="status-pill" id="userPill">
+        <span>👤</span>
+        <span id="userName">Alex Traveler</span>
+      </div>
+
+      <button id="btnSwitchUser" class="btn btn-secondary btn-sm">Switch Account</button>
+      <a href="/api-docs" target="_blank" class="btn btn-secondary btn-sm">📖 Swagger Docs</a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-wrapper">
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-container">
+      <button class="tab-btn active" data-tab="trips">🗺️ Trips & Itineraries</button>
+      <button class="tab-btn" data-tab="bookings">✈️ Flights & Hotel Bookings</button>
+      <button class="tab-btn" data-tab="expenses">💰 Budget & Expenses</button>
+      <button class="tab-btn" data-tab="share">🤝 Buddy Share & Collaboration</button>
+      <button class="tab-btn" data-tab="weather">🌤️ Weather & Local Tips</button>
+      <button class="tab-btn" data-tab="notifications">🔔 Push Alerts (<span id="notifCount">0</span>)</button>
+    </nav>
+
+    <!-- Tab 1: Trips & Itineraries -->
+    <section id="tab-trips" class="tab-content active">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">My Travel Journeys</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Select a trip to view and manage its day-by-day itinerary and activities.</p>
+        </div>
+        <button id="btnNewTrip" class="btn btn-primary">➕ Plan New Trip</button>
+      </div>
+
+      <!-- Trips Grid -->
+      <div id="tripsList" class="grid-3" style="margin-bottom: 2rem;">
+        <div style="color: var(--text-muted); padding: 2rem;">Loading your trips...</div>
+      </div>
+
+      <!-- Selected Trip Details & Day-by-day Itinerary -->
+      <div id="selectedTripSection" class="card" style="display: none;">
+        <div class="card-header">
+          <div>
+            <span id="detailTripDest" class="trip-dest">Destination</span>
+            <h2 id="detailTripTitle" class="card-title" style="font-size: 1.4rem;">Trip Title</h2>
+            <span id="detailTripDates" style="font-size: 0.85rem; color: var(--text-muted);">Dates</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="btnDownloadOffline" class="btn btn-secondary btn-sm">💾 Download Offline Bundle</button>
+            <button id="btnAddDay" class="btn btn-primary btn-sm">➕ Add Day Schedule</button>
+          </div>
+        </div>
+
+        <!-- Days Accordion/List -->
+        <div id="daysList" class="days-container">
+          <div style="color: var(--text-muted); padding: 1rem;">No itinerary days added yet. Click "Add Day Schedule".</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Bookings & Travel Search -->
+    <section id="tab-bookings" class="tab-content">
+      <div class="grid-2">
+        <!-- Search Widget -->
+        <div class="card">
+          <h2 class="card-title">🔍 Search Flights & Hotels</h2>
+          <div class="form-group">
+            <label class="form-label">Booking Type</label>
+            <select id="searchType" class="form-input">
+              <option value="flight">Flight Search</option>
+              <option value="hotel">Hotel Search</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label id="lblFrom" class="form-label">From City / Airport</label>
+              <input type="text" id="searchFrom" class="form-input" value="DEL">
+            </div>
+            <div class="form-group">
+              <label id="lblTo" class="form-label">Destination</label>
+              <input type="text" id="searchTo" class="form-input" value="Paris">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Travel Date</label>
+            <input type="date" id="searchDate" class="form-input" value="2026-07-01">
+          </div>
+          <button id="btnSearch" class="btn btn-primary">Find Options</button>
+
+          <!-- Search Results -->
+          <div style="margin-top: 1.5rem;">
+            <label class="form-label">Available Options</label>
+            <div id="searchResults" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 260px; overflow-y: auto;">
+              <div style="color: var(--text-dim); font-size: 0.85rem;">Click "Find Options" to search mock flights/hotels.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Confirmed Bookings -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🎟️ Confirmed Bookings</h2>
+            <button id="btnRefreshBookings" class="btn btn-secondary btn-sm">🔄 Refresh</button>
+          </div>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Each booking automatically creates a linked expense and fires an FCM push notification!
+          </p>
+          <div id="bookingsList" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 450px; overflow-y: auto;">
+            <div style="color: var(--text-dim); font-size: 0.85rem;">Loading bookings...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Budget & Expenses -->
+    <section id="tab-expenses" class="tab-content">
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+          <h2 class="card-title">📊 Trip Budget Overview</h2>
+          <select id="expenseTripSelect" class="form-input" style="max-width: 250px;">
+            <option value="">Select a trip...</option>
+          </select>
+        </div>
+
+        <div class="grid-3" style="margin-bottom: 1rem;">
+          <div class="card" style="background: rgba(255,255,255,0.02); text-align: center;">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Allocated Budget</span>
+            <h3 id="statBudget" style="font-size: 1.5rem; color: var(--accent-cyan); margin-top: 0.3rem;">₹0</h3>
+          </div>
+          <div class="card" style="background: rgba(255,255,255,0.02); text-align: center;">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Total Spent</span>
+            <h3 id="statSpent" style="font-size: 1.5rem; color: var(--accent-rose); margin-top: 0.3rem;">₹0</h3>
+          </div>
+          <div class="card" style="background: rgba(255,255,255,0.02); text-align: center;">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Remaining Budget</span>
+            <h3 id="statRemaining" style="font-size: 1.5rem; color: var(--accent-green); margin-top: 0.3rem;">₹0</h3>
+          </div>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+            <span>Budget Utilization</span>
+            <span id="budgetPercent">0%</span>
+          </div>
+          <div class="budget-bar-bg">
+            <div id="budgetBarFill" class="budget-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Add Expense -->
+        <div class="card">
+          <h2 class="card-title">➕ Record An Expense</h2>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select id="expCategory" class="form-input">
+              <option value="food">🍽️ Food & Dining</option>
+              <option value="transport">🚕 Transport</option>
+              <option value="accommodation">🏨 Accommodation</option>
+              <option value="activities">🎟️ Activities & Tours</option>
+              <option value="shopping">🛍️ Shopping</option>
+              <option value="other">📦 Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <input type="text" id="expDesc" class="form-input" placeholder="e.g. Dinner with team">
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Amount (₹)</label>
+              <input type="number" id="expAmount" class="form-input" placeholder="e.g. 2400">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Currency</label>
+              <input type="text" id="expCurrency" class="form-input" value="INR" readonly>
+            </div>
+          </div>
+          <button id="btnAddExpense" class="btn btn-primary">Add Expense Entry</button>
+        </div>
+
+        <!-- Expenses List -->
+        <div class="card">
+          <h2 class="card-title">📋 Expense Ledger</h2>
+          <div id="expensesTable" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 380px; overflow-y: auto;">
+            <div style="color: var(--text-dim); font-size: 0.85rem;">Select a trip to view expenses.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: Buddy Sharing & Collaboration -->
+    <section id="tab-share" class="tab-content">
+      <div class="grid-2">
+        <!-- Share Trip Card -->
+        <div class="card">
+          <h2 class="card-title">🤝 Share Trip with Buddies</h2>
+          <div class="form-group">
+            <label class="form-label">Select Trip to Share</label>
+            <select id="shareTripSelect" class="form-input">
+              <option value="">Select a trip...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Buddy's Email Address</label>
+            <input type="email" id="shareEmail" class="form-input" placeholder="e.g. buddy@example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Permission Level</label>
+            <select id="sharePermission" class="form-input">
+              <option value="view">View Only</option>
+              <option value="edit">Can Edit (Collaborative Access)</option>
+            </select>
+          </div>
+          <button id="btnShareTrip" class="btn btn-primary">Send Trip Invite & Push Notification</button>
+
+          <!-- Current Buddies List -->
+          <div style="margin-top: 1.5rem;">
+            <label class="form-label">Collaborators On This Trip</label>
+            <div id="sharedBuddiesList" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+              <div style="color: var(--text-dim); font-size: 0.85rem;">Select a trip above to see collaborators.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Real-Time Socket Collaboration Box -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">⚡ Live Real-Time Collaboration</h2>
+            <span class="status-pill"><span class="status-dot"></span> Socket.io</span>
+          </div>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Changes typed here broadcast across all collaborators in real-time over WebSocket!
+          </p>
+
+          <div class="form-group">
+            <label class="form-label">Active Itinerary Room</label>
+            <input type="text" id="liveRoomInput" class="form-input" placeholder="Auto-set when trip is selected" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Collaborative Scratchpad / Note</label>
+            <textarea id="liveNoteArea" class="form-input" rows="4" placeholder="Type a note (e.g. Changed meeting point to Station entrance)"></textarea>
+          </div>
+          <button id="btnSendLiveUpdate" class="btn btn-primary" style="margin-bottom: 1rem;">Broadcast Real-Time Update</button>
+
+          <label class="form-label">Real-Time Event Stream</label>
+          <div id="liveEventStream" class="feed-box" style="height: 160px; background: #090e1a; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem;">
+            <div style="color: var(--text-dim); font-size: 0.8rem;">Socket.io ready. Real-time broadcasts will appear here.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 5: Weather & Local Tips -->
+    <section id="tab-weather" class="tab-content">
+      <div class="grid-2">
+        <!-- Weather Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🌤️ 5-Day Weather Forecast</h2>
+            <div style="display: flex; gap: 0.4rem;">
+              <input type="text" id="weatherQuery" class="form-input" style="padding: 0.35rem 0.6rem; width: 140px;" value="Tokyo">
+              <button id="btnFetchWeather" class="btn btn-secondary btn-sm">Search</button>
+            </div>
+          </div>
+
+          <div id="weatherDisplay">
+            <div style="color: var(--text-dim);">Loading weather...</div>
+          </div>
+        </div>
+
+        <!-- Tips Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">💡 Local Customs & Tips</h2>
+            <button id="btnRefreshTips" class="btn btn-secondary btn-sm">🔄 Refresh</button>
+          </div>
+          <div id="tipsDisplay" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 400px; overflow-y: auto;">
+            <div style="color: var(--text-dim);">Loading tips...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 6: Notifications -->
+    <section id="tab-notifications" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔔 Push Notification & Alert History</h2>
+          <a href="/test-fcm" target="_blank" class="btn btn-primary btn-sm">📱 Open Device Token Tool</a>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Real-time record of all Firebase Cloud Messaging alerts dispatched for bookings, trip sharing, and system events.
+        </p>
+
+        <div id="notificationsStream" class="feed-box" style="max-height: 480px;">
+          <div style="color: var(--text-dim); padding: 1rem;">Loading notifications...</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: Plan New Trip -->
+  <div id="modalNewTrip" class="modal-overlay">
+    <div class="modal">
+      <div class="card-header">
+        <h3 class="card-title">🗺️ Plan a New Trip</h3>
+        <button id="btnCloseTripModal" class="btn btn-secondary btn-sm">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Trip Title</label>
+        <input type="text" id="tripTitleInput" class="form-input" placeholder="e.g. Autumn in Kyoto">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Destination</label>
+        <input type="text" id="tripDestInput" class="form-input" placeholder="e.g. Kyoto, Japan">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" id="tripStartInput" class="form-input" value="2026-10-15">
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date</label>
+          <input type="date" id="tripEndInput" class="form-input" value="2026-10-22">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total Budget (INR)</label>
+        <input type="number" id="tripBudgetInput" class="form-input" value="150000">
+      </div>
+      <button id="btnCreateTripSubmit" class="btn btn-primary" style="width: 100%;">Create Trip Itinerary</button>
+    </div>
+  </div>
+
+  <!-- Modal: Add Activity -->
+  <div id="modalNewActivity" class="modal-overlay">
+    <div class="modal">
+      <div class="card-header">
+        <h3 class="card-title">🎟️ Add Activity to Itinerary</h3>
+        <button id="btnCloseActivityModal" class="btn btn-secondary btn-sm">✕</button>
+      </div>
+      <input type="hidden" id="actItineraryId">
+      <div class="form-group">
+        <label class="form-label">Activity Name</label>
+        <input type="text" id="actNameInput" class="form-input" placeholder="e.g. Visit Senso-ji Temple">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select id="actTypeInput" class="form-input">
+            <option value="sightseeing">🏛️ Sightseeing</option>
+            <option value="food">🍜 Food & Dining</option>
+            <option value="adventure">🧗 Adventure</option>
+            <option value="shopping">🛍️ Shopping</option>
+            <option value="transport">🚅 Transport</option>
+            <option value="other">📌 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated Cost (₹)</label>
+          <input type="number" id="actCostInput" class="form-input" value="1200">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Start Time</label>
+          <input type="text" id="actStartInput" class="form-input" placeholder="e.g. 10:00 AM">
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Time</label>
+          <input type="text" id="actEndInput" class="form-input" placeholder="e.g. 12:30 PM">
+        </div>
+      </div>
+      <button id="btnCreateActivitySubmit" class="btn btn-primary" style="width: 100%;">Add Activity</button>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Main JavaScript Application Logic -->
+  <script src="/app.js"></script>
+</body>
+</html>
