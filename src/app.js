@@ -16,17 +16,11 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.get('/firebase-messaging-sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Service-Worker-Allowed', '/');
-  res.sendFile(path.join(__dirname, '../test-fcm/firebase-messaging-sw.js'));
+  res.sendFile(path.join(__dirname, '../public/firebase-messaging-sw.js'));
 });
 
 // Serve public static frontend
 app.use(express.static(path.join(__dirname, '../public')));
-
-// Serve FCM test UI at /test-fcm
-app.use('/test-fcm', express.static(path.join(__dirname, '../test-fcm')));
-
-// Serve Socket.io collaborative testing UI at /test-socket
-app.use('/test-socket', express.static(path.join(__dirname, '../test-socket')));
 
 // Enable CORS
 app.use(cors());
