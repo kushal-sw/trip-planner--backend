@@ -17,22 +17,22 @@ try {
     let serviceAccount;
     const trimmed = serviceAccountRaw.trim();
 
-    // 1. Check if it's a file path (relative or absolute)
-    const resolvedPath = path.isAbsolute(trimmed) ? trimmed : path.resolve(process.cwd(), trimmed);
-    if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
-      const fileContent = fs.readFileSync(resolvedPath, 'utf8');
-      serviceAccount = JSON.parse(fileContent);
-    } else if (trimmed.startsWith('{')) {
-      // 2. Raw JSON string
+    if (trimmed.startsWith('{')) {
+      // 1. Raw JSON string
       serviceAccount = JSON.parse(trimmed);
+    } else if (trimmed.length < 500 && (trimmed.includes('/') || trimmed.includes('\\') || trimmed.endsWith('.json'))) {
+      // 2. File path (relative or absolute)
+      const resolvedPath = path.isAbsolute(trimmed) ? trimmed : path.resolve(process.cwd(), trimmed);
+      if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+        const fileContent = fs.readFileSync(resolvedPath, 'utf8');
+        serviceAccount = JSON.parse(fileContent);
+      } else {
+        throw new Error(`Service account file not found at path: ${resolvedPath}`);
+      }
     } else {
       // 3. Base64 encoded JSON
-      try {
-        const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
-        serviceAccount = JSON.parse(decoded);
-      } catch (err) {
-        serviceAccount = JSON.parse(trimmed);
-      }
+      const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
     }
 
     // Ensure private_key newline formatting is intact
@@ -45,9 +45,15 @@ try {
       ? admin.cert(serviceAccount)
       : admin.credential && admin.credential.cert(serviceAccount);
 
-    firebaseApp = admin.initializeApp({
-      credential: credentialCert,
-    });
+    // Re-use default app if already initialized in this process
+    const existingApps = admin.apps || [];
+    if (existingApps.length > 0) {
+      firebaseApp = existingApps[0];
+    } else {
+      firebaseApp = admin.initializeApp({
+        credential: credentialCert,
+      });
+    }
 
     messaging = getMessaging(firebaseApp);
     auth = getAuth(firebaseApp);
