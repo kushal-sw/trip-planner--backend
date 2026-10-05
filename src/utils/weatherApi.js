@@ -23,7 +23,18 @@ const getHash = (str) => {
   return Math.abs(hash);
 };
 
+const { getGeminiWeather } = require('./geminiService');
+
 const getWeatherData = async (destinationName = 'Paris') => {
+  // 1. Attempt real AI-generated forecast from Google Gemini
+  if (process.env.GEMINI_API_KEY) {
+    const aiData = await getGeminiWeather(destinationName);
+    if (aiData) {
+      return aiData;
+    }
+  }
+
+  // 2. Deterministic offline fallback engine
   const hash = getHash(destinationName.toLowerCase().trim());
   const selectedCondition = CONDITIONS[hash % CONDITIONS.length];
 

@@ -3,6 +3,7 @@ const { param } = require('express-validator');
 const {
   getAllTips,
   getTipsByDestination,
+  getAiTips,
 } = require('../controllers/tips.controller');
 const protect = require('../middleware/auth');
 const validate = require('../middleware/validate');
@@ -18,6 +19,7 @@ const destinationIdValidation = [
 
 // Routes
 router.get('/', getAllTips);
+router.get('/ai', getAiTips);
 router.get('/destination/:id', validate(destinationIdValidation), getTipsByDestination);
 
 module.exports = router;

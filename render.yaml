@@ -16,3 +16,5 @@ services:
         value: 7d
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
