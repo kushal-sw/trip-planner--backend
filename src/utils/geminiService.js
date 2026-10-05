@@ -3,11 +3,16 @@
  * Powers AI weather forecasts, travel advisories, and localized insider tips.
  */
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_MODELS = [
+  'gemini-flash-lite-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
+];
 
 /**
- * Helper to call Gemini REST API with structured JSON output
+ * Helper to call Gemini REST API with candidate models and structured JSON output
  */
 async function callGemini(prompt) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -15,44 +20,56 @@ async function callGemini(prompt) {
     return null;
   }
 
-  const endpoint = `${GEMINI_URL}?key=${apiKey.trim()}`;
+  const cleanKey = apiKey.trim();
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
+  // Try candidate models in order of availability
+  for (const model of GEMINI_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+      const requestBody = {
+        contents: [
           {
-            text: prompt,
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
           },
         ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.4,
-      responseMimeType: 'application/json',
-    },
-  };
+        generationConfig: {
+          temperature: 0.4,
+          responseMimeType: 'application/json',
+        },
+      };
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+      if (!response.ok) {
+        // Continue to next candidate model if model unavailable or overloaded (404/503/429)
+        continue;
+      }
+
+      const json = await response.json();
+      const textOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textOutput) {
+        continue;
+      }
+
+      const cleanJson = textOutput.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      parsed._usedModel = model;
+      return parsed;
+    } catch (_) {
+      // Try next model candidate
+      continue;
+    }
   }
 
-  const json = await response.json();
-  const textOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!textOutput) {
-    throw new Error('Gemini API returned empty response');
-  }
-
-  // Clean potential markdown wrap
-  const cleanJson = textOutput.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-  return JSON.parse(cleanJson);
+  return null;
 }
 
 /**
@@ -98,7 +115,8 @@ Note: Exactly 5 items in the forecast array for 5 consecutive days.
     const data = await callGemini(prompt);
     if (data && data.current && Array.isArray(data.forecast)) {
       data.aiPowered = true;
-      data.model = GEMINI_MODEL;
+      data.model = data._usedModel || 'gemini-flash-lite-latest';
+      delete data._usedModel;
       data.retrievedAt = new Date().toISOString();
       return data;
     }
