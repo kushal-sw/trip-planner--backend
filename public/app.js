@@ -63,32 +63,76 @@ async function api(endpoint, options = {}) {
   }
 }
 
-// Initialize Auth
-async function initAuth() {
+// Auth Session Manager
+function applySession(token, user, showWelcome = true) {
+  state.token = token;
+  state.user = user;
+  localStorage.setItem('tp_token', token);
+  localStorage.setItem('tp_user', JSON.stringify(user));
+
+  userNamePill.innerText = `${user.name} (${user.role})`;
+  if (showWelcome) showToast(`Signed in as ${user.name}!`);
+
+  const modalAuth = document.getElementById('modalAuth');
+  if (modalAuth) modalAuth.classList.remove('open');
+
+  initSocket();
+  loadTrips();
+  loadBookings();
+  loadWeather('Paris');
+  loadTips();
+  loadNotifications();
+}
+
+async function loginWithCredentials(email, password) {
   try {
-    // Attempt auto-login demo user Alex
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'alex@example.com', password: 'userPassword123' }),
+      body: JSON.stringify({ email, password }),
     });
     const json = await res.json();
-
-    if (json.success && json.data.token) {
-      state.token = json.data.token;
-      state.user = json.data.user;
-      userNamePill.innerText = state.user.name;
-      showToast(`Welcome back, ${state.user.name}!`);
-      initSocket();
-      loadTrips();
-      loadBookings();
-      loadWeather('Tokyo');
-      loadTips();
-      loadNotifications();
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'Login failed');
     }
+    applySession(json.data.token, json.data.user);
   } catch (err) {
-    console.error('Auto-login error:', err);
+    showToast(err.message, 'error');
   }
+}
+
+async function registerNewUser(name, email, password) {
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'Registration failed');
+    }
+    applySession(json.data.token, json.data.user);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// Initialize Auth
+async function initAuth() {
+  const savedToken = localStorage.getItem('tp_token');
+  const savedUser = localStorage.getItem('tp_user');
+
+  if (savedToken && savedUser) {
+    try {
+      const user = JSON.parse(savedUser);
+      applySession(savedToken, user, false);
+      return;
+    } catch (_) {}
+  }
+
+  // Fallback to auto-login Alex
+  await loginWithCredentials('alex@example.com', 'userPassword123');
 }
 
 // Initialize Socket.io
@@ -846,6 +890,78 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     const target = document.getElementById(`tab-${btn.dataset.tab}`);
     if (target) target.classList.add('active');
   });
+});
+
+// --- USER SWITCH & AUTH MODAL HANDLERS ---
+const modalAuth = document.getElementById('modalAuth');
+const btnSwitchUser = document.getElementById('btnSwitchUser');
+const btnCloseAuthModal = document.getElementById('btnCloseAuthModal');
+
+if (btnSwitchUser && modalAuth) {
+  btnSwitchUser.addEventListener('click', () => modalAuth.classList.add('open'));
+}
+if (btnCloseAuthModal && modalAuth) {
+  btnCloseAuthModal.addEventListener('click', () => modalAuth.classList.remove('open'));
+}
+
+// Quick presets
+document.getElementById('btnQuickAlex')?.addEventListener('click', () => {
+  loginWithCredentials('alex@example.com', 'userPassword123');
+});
+document.getElementById('btnQuickSarah')?.addEventListener('click', () => {
+  loginWithCredentials('sarah@example.com', 'sarahPassword123');
+});
+document.getElementById('btnQuickAdmin')?.addEventListener('click', () => {
+  loginWithCredentials('admin@tripplanner.com', 'adminPassword123');
+});
+
+// Toggle between Login & Register tabs inside modal
+const tabAuthLogin = document.getElementById('tabAuthLogin');
+const tabAuthRegister = document.getElementById('tabAuthRegister');
+const authLoginForm = document.getElementById('authLoginForm');
+const authRegisterForm = document.getElementById('authRegisterForm');
+
+if (tabAuthLogin && tabAuthRegister) {
+  tabAuthLogin.addEventListener('click', () => {
+    tabAuthLogin.className = 'btn btn-primary btn-sm';
+    tabAuthRegister.className = 'btn btn-secondary btn-sm';
+    authLoginForm.style.display = 'block';
+    authRegisterForm.style.display = 'none';
+  });
+
+  tabAuthRegister.addEventListener('click', () => {
+    tabAuthRegister.className = 'btn btn-primary btn-sm';
+    tabAuthLogin.className = 'btn btn-secondary btn-sm';
+    authLoginForm.style.display = 'none';
+    authRegisterForm.style.display = 'block';
+  });
+}
+
+// Submit Sign In
+document.getElementById('btnLoginSubmit')?.addEventListener('click', () => {
+  const email = document.getElementById('loginEmailInput').value.trim();
+  const password = document.getElementById('loginPasswordInput').value.trim();
+  if (!email || !password) {
+    showToast('Please enter both email and password', 'error');
+    return;
+  }
+  loginWithCredentials(email, password);
+});
+
+// Submit Register
+document.getElementById('btnRegisterSubmit')?.addEventListener('click', () => {
+  const name = document.getElementById('regNameInput').value.trim();
+  const email = document.getElementById('regEmailInput').value.trim();
+  const password = document.getElementById('regPasswordInput').value.trim();
+  if (!name || !email || !password) {
+    showToast('Please fill in all registration fields', 'error');
+    return;
+  }
+  if (password.length < 6) {
+    showToast('Password must be at least 6 characters', 'error');
+    return;
+  }
+  registerNewUser(name, email, password);
 });
 
 // Boot application

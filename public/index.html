@@ -406,6 +406,62 @@
     </div>
   </div>
 
+  <!-- Modal: Switch / Create User -->
+  <div id="modalAuth" class="modal-overlay">
+    <div class="modal" style="max-width: 500px;">
+      <div class="card-header">
+        <h3 class="card-title">👤 Account Management</h3>
+        <button id="btnCloseAuthModal" class="btn btn-secondary btn-sm">✕</button>
+      </div>
+
+      <!-- Quick Switch Presets -->
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">⚡ One-Click Switch (Seeded Accounts)</span>
+        <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+          <button id="btnQuickAlex" class="btn btn-secondary btn-sm" type="button">Alex (Trip Owner)</button>
+          <button id="btnQuickSarah" class="btn btn-secondary btn-sm" type="button">Sarah (Collaborator)</button>
+          <button id="btnQuickAdmin" class="btn btn-secondary btn-sm" type="button">Admin Master</button>
+        </div>
+      </div>
+
+      <!-- Auth Tabs: Sign In / Register -->
+      <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 16px;">
+        <button id="tabAuthLogin" class="btn btn-primary btn-sm" style="flex: 1;" type="button">🔑 Sign In</button>
+        <button id="tabAuthRegister" class="btn btn-secondary btn-sm" style="flex: 1;" type="button">✨ Create New User</button>
+      </div>
+
+      <!-- Sign In Form -->
+      <div id="authLoginForm">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="loginEmailInput" class="form-input" placeholder="e.g. alex@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="loginPasswordInput" class="form-input" placeholder="••••••••">
+        </div>
+        <button id="btnLoginSubmit" class="btn btn-primary" style="width: 100%;" type="button">Sign In</button>
+      </div>
+
+      <!-- Register Form -->
+      <div id="authRegisterForm" style="display: none;">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="regNameInput" class="form-input" placeholder="e.g. Maya Traveler">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="regEmailInput" class="form-input" placeholder="e.g. maya@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password (at least 6 characters)</label>
+          <input type="password" id="regPasswordInput" class="form-input" placeholder="••••••••">
+        </div>
+        <button id="btnRegisterSubmit" class="btn btn-primary" style="width: 100%;" type="button">Create Account & Sign In</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications Container -->
   <div id="toastContainer" class="toast-container"></div>
 
