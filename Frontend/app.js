@@ -103,6 +103,9 @@ if (typeof firebase !== 'undefined' && !firebase.apps?.length) {
 }
 
 async function loginWithGoogle() {
+  const errBox = document.getElementById('authModalError');
+  if (errBox) errBox.style.display = 'none';
+
   try {
     if (typeof firebase === 'undefined' || !firebase.auth) {
       showToast('Firebase Auth SDK is not available', 'error');
@@ -125,10 +128,24 @@ async function loginWithGoogle() {
     if (!res.ok || !json.success) {
       throw new Error(json.message || 'Google authentication failed on server');
     }
+    if (errBox) errBox.style.display = 'none';
     applySession(json.data.token, json.data.user);
     showToast(`Welcome, ${json.data.user.name}! 🎉`);
   } catch (err) {
     console.error('Google Sign-In Error:', err);
+    if (errBox) {
+      errBox.style.display = 'block';
+      if (err.code === 'auth/unauthorized-domain') {
+        errBox.innerHTML = `⚠️ <b>Domain not authorized in Firebase Console:</b><br>Please add <code>${window.location.hostname}</code> to <b>Firebase Console &rarr; Authentication &rarr; Settings &rarr; Authorized domains</b>.`;
+      } else if (err.code === 'auth/operation-not-allowed') {
+        errBox.innerHTML = `⚠️ <b>Google sign-in is disabled:</b><br>Please enable Google under <b>Firebase Console &rarr; Authentication &rarr; Sign-in method</b>.`;
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        errBox.innerText = 'Google Sign-In popup was closed before completing login.';
+      } else {
+        errBox.innerText = `⚠️ ${err.message || 'Google sign-in failed'}`;
+      }
+    }
+
     if (err.code === 'auth/popup-closed-by-user') {
       showToast('Google Sign-In popup closed', 'error');
     } else {
