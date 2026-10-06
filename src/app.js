@@ -12,15 +12,29 @@ const app = express();
 // Security HTTP headers (CSP disabled so Swagger & test-fcm CDN scripts load smoothly)
 app.use(helmet({ contentSecurityPolicy: false }));
 
+const fs = require('fs');
+
+// Resolve frontend directory (Frontend or public)
+const frontendDir = fs.existsSync(path.join(__dirname, '../Frontend'))
+  ? path.join(__dirname, '../Frontend')
+  : path.join(__dirname, '../public');
+
 // Serve FCM service worker at root domain (required by browser push service)
 app.get('/firebase-messaging-sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Service-Worker-Allowed', '/');
-  res.sendFile(path.join(__dirname, '../public/firebase-messaging-sw.js'));
+  const swPath = path.join(frontendDir, 'firebase-messaging-sw.js');
+  if (fs.existsSync(swPath)) {
+    return res.sendFile(swPath);
+  }
+  res.status(404).end();
 });
 
 // Serve public static frontend
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(frontendDir));
+if (fs.existsSync(path.join(__dirname, '../public'))) {
+  app.use(express.static(path.join(__dirname, '../public')));
+}
 
 // Enable CORS
 app.use(cors());
