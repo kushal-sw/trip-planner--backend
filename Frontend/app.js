@@ -845,6 +845,7 @@ document.getElementById('btnSendLiveUpdate').addEventListener('click', () => {
 document.getElementById('btnFetchWeather').addEventListener('click', () => {
   const city = document.getElementById('weatherQuery').value.trim() || 'Tokyo';
   loadWeather(city);
+  loadTips(city);
 });
 
 async function loadWeather(city) {
@@ -884,14 +885,23 @@ async function loadWeather(city) {
   }
 }
 
-async function loadTips() {
+async function loadTips(city) {
   const display = document.getElementById('tipsDisplay');
   try {
-    const res = await api('/api/tips');
-    const tips = res.data.tips || [];
+    const targetCity = city || document.getElementById('weatherQuery')?.value.trim() || 'Paris';
+    display.innerHTML = `<div style="color:var(--text-dim);">Loading tips for ${targetCity}...</div>`;
+
+    let tips = [];
+    try {
+      const res = await api(`/api/tips/ai?destination=${encodeURIComponent(targetCity)}`);
+      tips = res.data?.tips || [];
+    } catch (_) {
+      const fallback = await api('/api/tips');
+      tips = fallback.data?.tips || [];
+    }
 
     if (tips.length === 0) {
-      display.innerHTML = `<div style="color:var(--text-dim);">No tips found.</div>`;
+      display.innerHTML = `<div style="color:var(--text-dim);">No tips found for ${targetCity}.</div>`;
       return;
     }
 
@@ -900,18 +910,23 @@ async function loadTips() {
         (t) => `
       <div style="background:#090e1a; border:1px solid var(--border-color); border-radius:8px; padding:0.75rem;">
         <div style="display:flex; justify-content:space-between; margin-bottom:0.25rem;">
-          <span style="font-weight:700; font-size:0.85rem; color:var(--accent-cyan);">${t.category.toUpperCase()}</span>
-          <span style="font-size:0.75rem; color:var(--text-dim);">${t.destinationId?.name || 'General Advice'}</span>
+          <span style="font-weight:700; font-size:0.85rem; color:var(--accent-cyan);">${(t.category || 'general').toUpperCase()}</span>
+          <span style="font-size:0.75rem; color:var(--text-dim);">${t.destination || t.destinationId?.name || targetCity}</span>
         </div>
-        <p style="font-size:0.82rem; color:var(--text-muted);">${t.content}</p>
+        <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.4;">${t.text || t.content || ''}</p>
       </div>
     `
       )
       .join('');
-  } catch (err) {}
+  } catch (err) {
+    display.innerHTML = `<div style="color:var(--accent-rose);">Failed to load tips.</div>`;
+  }
 }
 
-document.getElementById('btnRefreshTips').addEventListener('click', loadTips);
+document.getElementById('btnRefreshTips').addEventListener('click', () => {
+  const city = document.getElementById('weatherQuery')?.value.trim();
+  loadTips(city);
+});
 
 // --- TAB 6: NOTIFICATIONS ---
 
