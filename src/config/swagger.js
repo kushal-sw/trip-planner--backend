@@ -15,12 +15,16 @@ const options = {
     },
     servers: [
       {
-        url: `http://localhost:${port}`,
-        description: 'Development server',
+        url: '/',
+        description: 'Current Server (Auto-detect / Render)',
       },
       {
-        url: 'https://tripplanner-api.onrender.com',
+        url: 'https://smart-travel-itinerary-backend.onrender.com',
         description: 'Render Production server',
+      },
+      {
+        url: `http://localhost:${port}`,
+        description: 'Development server',
       },
     ],
     tags: [
