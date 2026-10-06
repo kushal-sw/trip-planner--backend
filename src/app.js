@@ -9,8 +9,13 @@ const ApiError = require('./utils/ApiError');
 
 const app = express();
 
-// Security HTTP headers (CSP disabled so Swagger & test-fcm CDN scripts load smoothly)
-app.use(helmet({ contentSecurityPolicy: false }));
+// Security HTTP headers (CSP disabled for Swagger/CDNs, COOP disabled for Google OAuth popups)
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: false,
+  })
+);
 
 const fs = require('fs');
 
